@@ -2,7 +2,7 @@
 set -e
 
 # Emplacement du servlet-api.jar (Tomcat déjà installé)
-TOMCAT_LIB=/path/to/tomcat/lib/servlet-api.jar
+TOMCAT_LIB=/opt/apache-tomcat-10.1.28/lib/servlet-api.jar
 
 # Nettoyage
 rm -rf out
