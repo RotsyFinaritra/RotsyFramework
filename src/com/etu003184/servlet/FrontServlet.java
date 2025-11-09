@@ -5,7 +5,9 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.ResourceBundle.Control;
 
 import com.etu003184.util.RouteHandler;
 
@@ -71,9 +73,42 @@ public class FrontServlet extends HttpServlet {
             out.println("Controller : " + handler.getControllerClass().getName() + "<br>");
             out.println("Méthode : " + handler.getMethod().getName() + "<br>");
 
+            executeMethod(handler, req, resp);
+
         } else {
             out.println("Tsy haiko par respect  : " + resourcePath + "<br>");
             System.out.println("== Tsy haiko par respect : " + resourcePath);
+        }
+    }
+
+    private void executeMethod(RouteHandler handler, HttpServletRequest req, HttpServletResponse resp) {
+        try {
+            Object controllerInstance = handler.getControllerClass().getDeclaredConstructor().newInstance();
+
+            Method method = handler.getMethod();
+
+            if (method.getParameterCount() == 0) {
+                Object result = method.invoke(controllerInstance);
+                if (result != null && result instanceof String) {
+                    resp.getWriter().println("Résultat : " + result);
+                }
+            } else if (method.getParameterCount() == 2
+                    && method.getParameterTypes()[0] == HttpServletRequest.class
+                    && method.getParameterTypes()[1] == HttpServletResponse.class) {
+                Object result = method.invoke(controllerInstance, req, resp);
+                if (result != null && result instanceof String) {
+                    resp.getWriter().println("Résultat : " + result);
+                }
+            } else {
+                resp.getWriter().println("Tsa metyyy.");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            try {
+                resp.getWriter().println("Erreur lors de l'exécution du contrôleur : " + e.getMessage());
+            } catch (IOException ignored) {
+            }
         }
     }
 
