@@ -1,15 +1,34 @@
 package com.etu003184.servlet;
 
 import jakarta.servlet.*;
+import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Map;
 
+import com.etu003184.util.RouteHandler;
+
+@WebServlet(name = "FrontServlet", urlPatterns = "/*")
 public class FrontServlet extends HttpServlet {
+
+    private Map<String, RouteHandler> routeMap;
+
+    @Override
+    public void init() throws ServletException {
+        // Récupérer les routes du contexte
+        ServletContext context = getServletContext();
+        routeMap = (Map<String, RouteHandler>) context.getAttribute("ROUTES");
+
+        System.out.println("=== FrontServlet initialisé ===");
+    }
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+
         handleRequest(req, resp);
+
     }
 
     @Override
@@ -18,31 +37,44 @@ public class FrontServlet extends HttpServlet {
         handleRequest(req, resp);
     }
 
-    private void handleRequest(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+    private void handleRequest(HttpServletRequest req, HttpServletResponse resp)
+            throws ServletException, IOException {
 
-        String path = req.getRequestURI();
         String resourcePath = req.getRequestURI().substring(req.getContextPath().length());
+        ServletContext ctx = req.getServletContext();
 
-        if ("/".equals(resourcePath) || "".equals(resourcePath)) {
-            resp.getWriter().println("/");
+        System.out.println("resourcePath: " + resourcePath);
+
+        if (resourcePath.isEmpty() || "/".equals(resourcePath)) {
+            RequestDispatcher defaultDispatcher = req.getRequestDispatcher("/index.jsp");
+            defaultDispatcher.forward(req, resp);
+            System.out.println("marina");
+        }
+
+        if (ctx.getResource(resourcePath) != null) {
+            System.out.println("➡️  Ressource statique trouvée : " + resourcePath);
+            RequestDispatcher dispatcher = ctx.getNamedDispatcher("default");
+            dispatcher.forward(req, resp);
             return;
         }
 
-        boolean resourceExists = req.getServletContext().getResource(resourcePath) != null;
+        resp.setContentType("text/html");
+        PrintWriter out = resp.getWriter();
+        if (routeMap != null && routeMap.containsKey(resourcePath)) {
 
-        if (resourceExists) {
-            System.out.println("La ressource demandée existe : " + resourcePath);
-            RequestDispatcher dispatcher = req.getServletContext().getNamedDispatcher("default");
-            dispatcher.forward(req, resp);
+            RouteHandler handler = routeMap.get(resourcePath);
+            System.out.println("== Route trouvée ==");
+            System.out.println("URL : " + resourcePath);
+            System.out.println("Controller : " + handler.getControllerClass().getName());
+            System.out.println("Méthode : " + handler.getMethod().getName());
+
+            out.println("Controller : " + handler.getControllerClass().getName() + "<br>");
+            out.println("Méthode : " + handler.getMethod().getName() + "<br>");
+
         } else {
-            PrintWriter out = resp.getWriter();
-            resp.setContentType("text/html");
-            out.println("URL demandée : " + path + "<br>");
-            out.println("Ressource demandée : " + resourcePath + "<br>");
+            out.println("Tsy haiko par respect  : " + resourcePath + "<br>");
+            System.out.println("== Tsy haiko par respect : " + resourcePath);
         }
-
-        // String url = req.getRequestURL().toString();
-        // // System.out.println("== Nouvelle requête ==");
-        // System.out.println("URL demandée : " + url);
     }
+
 }
