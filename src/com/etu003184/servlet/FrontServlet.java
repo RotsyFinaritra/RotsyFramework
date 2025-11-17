@@ -29,18 +29,28 @@ public class FrontServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        handleRequest(req, resp);
+        try {
+            handleRequest(req, resp);
+        } catch (Exception e) {
+            e.printStackTrace();
+            resp.getWriter().println(e.getMessage());
+        }
 
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        handleRequest(req, resp);
+        try {
+            handleRequest(req, resp);
+        } catch (Exception e) {
+            e.printStackTrace();
+            resp.getWriter().println(e.getMessage());
+        }
     }
 
     private void handleRequest(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
+            throws Exception {
 
         String resourcePath = req.getRequestURI().substring(req.getContextPath().length());
         ServletContext ctx = req.getServletContext();
@@ -76,8 +86,9 @@ public class FrontServlet extends HttpServlet {
             executeMethod(handler, req, resp);
 
         } else {
-            out.println("Tsy haiko par respect  : " + resourcePath + "<br>");
+            // out.println("Tsy haiko par respect  : " + resourcePath + "<br>");
             System.out.println("== Tsy haiko par respect : " + resourcePath);
+            throw new Exception("Tsy haiko ity  : " + resourcePath);
         }
     }
 
