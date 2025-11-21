@@ -8,12 +8,18 @@ public class ModelView {
     private Map<String, Object> data;
 
     public ModelView() {
-        this.data = new java.util.HashMap<>();
+        this.setData(new java.util.HashMap<>());
+    }
+
+    public ModelView(String view) {
+        this.view = view;
+        this.setData(new java.util.HashMap<>());
+
     }
 
     public ModelView(String view, Map<String, Object> data) {
-        this.view = view;
-        this.data = data;
+        this.setView(view);
+        this.setData(data);
     }
 
     public Map<String, Object> getData() {
@@ -26,10 +32,6 @@ public class ModelView {
 
     public void setData(Map<String, Object> data) {
         this.data = data;
-    }
-
-    public ModelView(String view) {
-        this.view = view;
     }
 
     public String getView() {

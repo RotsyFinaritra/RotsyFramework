@@ -11,7 +11,7 @@ import java.util.Map;
 import com.etu003184.model.ModelView;
 import com.etu003184.util.RouteHandler;
 
-@WebServlet(name = "FrontServlet", urlPatterns = "/*")
+@WebServlet(name = "FrontServlet", urlPatterns = "/")
 public class FrontServlet extends HttpServlet {
 
     private Map<String, RouteHandler> routeMap;
@@ -59,14 +59,8 @@ public class FrontServlet extends HttpServlet {
 
         if (resourcePath.isEmpty() || "/".equals(resourcePath)) {
             RequestDispatcher defaultDispatcher = req.getRequestDispatcher("/index.jsp");
-            defaultDispatcher.forward(req, resp);
             System.out.println("marina");
-        }
-
-        if (ctx.getResource(resourcePath) != null) {
-            System.out.println("➡️  Ressource statique trouvée : " + resourcePath);
-            RequestDispatcher dispatcher = ctx.getNamedDispatcher("default");
-            dispatcher.forward(req, resp);
+            defaultDispatcher.forward(req, resp);
             return;
         }
 
@@ -80,16 +74,24 @@ public class FrontServlet extends HttpServlet {
             System.out.println("Controller : " + handler.getControllerClass().getName());
             System.out.println("Méthode : " + handler.getMethod().getName());
 
-            out.println("Controller : " + handler.getControllerClass().getName() + "<br>");
-            out.println("Méthode : " + handler.getMethod().getName() + "<br>");
-
+            
             executeMethod(handler, req, resp);
-
-        } else {
-            // out.println("Tsy haiko par respect  : " + resourcePath + "<br>");
-            System.out.println("== Tsy haiko par respect : " + resourcePath);
-            throw new Exception("Tsy haiko ity  : " + resourcePath);
+            
+            // out.println("Controller : " + handler.getControllerClass().getName() + "<br>");
+            // out.println("Méthode : " + handler.getMethod().getName() + "<br>");
+            return;
         }
+
+        if (ctx.getResource(resourcePath) != null) {
+            System.out.println("➡️  Ressource statique trouvée : " + resourcePath);
+            RequestDispatcher dispatcher = ctx.getNamedDispatcher("default");
+            dispatcher.forward(req, resp);
+            return;
+        }
+
+        // out.println("Tsy haiko par respect : " + resourcePath + "<br>");
+        System.out.println("== Tsy haiko par respect : " + resourcePath);
+        throw new Exception("Tsy haiko ity  : " + resourcePath);
     }
 
     private void executeMethod(RouteHandler handler, HttpServletRequest req, HttpServletResponse resp) {
@@ -105,12 +107,15 @@ public class FrontServlet extends HttpServlet {
                 } else if (result != null && result instanceof ModelView) {
                     ModelView modelView = (ModelView) result;
                     req.setAttribute("view", modelView.getView());
+                    if (!modelView.getData().isEmpty()) {
+                        modelView.getData().forEach((key, value) -> {
+                            req.setAttribute(key, value);
+                        });
+                    }
                     RequestDispatcher dispatcher = req.getRequestDispatcher("/" + modelView.getView());
                     dispatcher.forward(req, resp);
                 }
-            } else if (method.getParameterCount() == 2
-                    && method.getParameterTypes()[0] == HttpServletRequest.class
-                    && method.getParameterTypes()[1] == HttpServletResponse.class) {
+            } else if (method.getParameterCount() > 0) {
                 Object result = method.invoke(controllerInstance, req, resp);
                 if (result != null && result instanceof String) {
                     resp.getWriter().println("Résultat : " + result);
