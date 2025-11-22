@@ -3,6 +3,8 @@ package com.etu003184.util;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 
+import com.etu003184.annotation.RequestParam;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -19,21 +21,25 @@ public class GenericUtil {
 
             System.out.println("Preparing parameter " + i + " of type " + paramType.getName());
             System.out.println("Parameter name: " + parameter.getName());
+            String paramName = parameter.getName();
+
+            RequestParam requestParamAnnotation = parameter.getAnnotation(RequestParam.class);
+            if (requestParamAnnotation != null && !requestParamAnnotation.value().isEmpty()) {
+                paramName = requestParamAnnotation.value();
+            }
+
             try {
                 if (paramType == HttpServletRequest.class) {
                     args[i] = req;
                 } else if (paramType == HttpServletResponse.class) {
                     args[i] = resp;
                 } else if (paramType == String.class) {
-                    String paramName = parameter.getName();
                     String paramValue = req.getParameter(paramName);
                     args[i] = paramValue;
                 } else if (paramType == int.class || paramType == Integer.class) {
-                    String paramName = parameter.getName();
                     String paramValue = req.getParameter(paramName);
                     args[i] = paramValue != null ? Integer.parseInt(paramValue) : 0;
                 } else if (paramType == double.class || paramType == Double.class) {
-                    String paramName = parameter.getName();
                     String paramValue = req.getParameter(paramName);
                     args[i] = paramValue != null ? Double.parseDouble(paramValue) : 0.0;
                 } else {
