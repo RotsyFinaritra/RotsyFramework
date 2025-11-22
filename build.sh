@@ -15,3 +15,6 @@ find src -name "*.java" -print | xargs javac -d out -cp $TOMCAT_LIB
 # Création du jar
 jar cf my-framework.jar -C out .
 echo "✅ JAR généré : my-framework.jar"
+
+# copie / remplacement du jar dans le dossier lib /home/finaritra/Documents/cours/s5/Mr Naina/framework/myFramework/test-RotsyFramework/lib
+cp -f "my-framework.jar" "/home/finaritra/Documents/cours/s5/Mr Naina/framework/myFramework/test-RotsyFramework/lib/"
