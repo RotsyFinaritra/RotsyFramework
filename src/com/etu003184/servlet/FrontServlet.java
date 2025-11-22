@@ -74,11 +74,15 @@ public class FrontServlet extends HttpServlet {
             System.out.println("Controller : " + handler.getControllerClass().getName());
             System.out.println("Méthode : " + handler.getMethod().getName());
 
-            
             executeMethod(handler, req, resp);
-            
-            // out.println("Controller : " + handler.getControllerClass().getName() + "<br>");
+
+            // out.println("Controller : " + handler.getControllerClass().getName() +
+            // "<br>");
             // out.println("Méthode : " + handler.getMethod().getName() + "<br>");
+            return;
+        }
+
+        if (checkUrlParam(resourcePath, out, req, resp)) {
             return;
         }
 
@@ -92,6 +96,61 @@ public class FrontServlet extends HttpServlet {
         // out.println("Tsy haiko par respect : " + resourcePath + "<br>");
         System.out.println("== Tsy haiko par respect : " + resourcePath);
         throw new Exception("Tsy haiko ity  : " + resourcePath);
+    }
+
+    private boolean checkUrlParam(String resourcePath, PrintWriter out, HttpServletRequest req, HttpServletResponse resp) {
+        for (Map.Entry<String, RouteHandler> entry : routeMap.entrySet()) {
+            String pattern = entry.getKey();
+            RouteHandler handler = entry.getValue();
+
+            if (matchesPattern(pattern, resourcePath, req)) {
+                System.out.println("== Route avec pattern trouvée ==");
+                System.out.println("URL : " + resourcePath);
+                System.out.println("Pattern : " + pattern);
+                System.out.println("Controller : " + handler.getControllerClass().getName());
+                System.out.println("Méthode : " + handler.getMethod().getName());
+
+                out.println("== Route avec pattern trouvée == <br>");
+                out.println("URL : " + resourcePath + "<br>");
+                out.println("Pattern : " + pattern + "<br>");
+                out.println("Controller : " + handler.getControllerClass().getName() + "<br>");
+                out.println("Méthode : " + handler.getMethod().getName() + "<br>");
+                out.println("== Route avec pattern trouvée ==");
+
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesPattern(String pattern, String path, HttpServletRequest req) {
+        // Diviser les chemins en segments
+        String[] patternParts = pattern.split("/");
+        String[] pathParts = path.split("/");
+
+        // Même nombre de segments requis
+        if (patternParts.length != pathParts.length) {
+            return false;
+        }
+
+        // Comparer chaque segment
+        for (int i = 0; i < patternParts.length; i++) {
+            String patternPart = patternParts[i];
+            String pathPart = pathParts[i];
+
+            if (patternPart.startsWith("{") && patternPart.endsWith("}")) {
+                // C'est un paramètre - extraire la valeur
+                String paramName = patternPart.substring(1, patternPart.length() - 1);
+                req.setAttribute("param_" + paramName, pathPart);
+                System.out.println("Paramètre extrait : " + paramName + " = " + pathPart);
+            } else {
+                // Segment fixe - doit correspondre exactement
+                if (!patternPart.equals(pathPart)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private void executeMethod(RouteHandler handler, HttpServletRequest req, HttpServletResponse resp) {
