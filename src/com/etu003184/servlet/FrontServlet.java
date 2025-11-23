@@ -10,6 +10,7 @@ import java.lang.reflect.Parameter;
 import java.util.Map;
 
 import com.etu003184.model.ModelView;
+import com.etu003184.util.ConstanteRequestMethod;
 import com.etu003184.util.GenericUtil;
 import com.etu003184.util.RouteHandler;
 
@@ -90,35 +91,71 @@ public class FrontServlet extends HttpServlet {
 
         resp.setContentType("text/html");
         PrintWriter out = resp.getWriter();
-        if (routeMap != null && routeMap.containsKey(resourcePath)) {
 
-            RouteHandler handler = routeMap.get(resourcePath);
-            System.out.println("== Route trouvée ==");
-            System.out.println("URL : " + resourcePath);
-            System.out.println("Controller : " + handler.getControllerClass().getName());
-            System.out.println("Méthode : " + handler.getMethod().getName());
+        String[] methods = ConstanteRequestMethod.methods;
+        String reqMethod = req.getMethod();
 
-            executeMethod(handler, req, resp);
+        boolean canExecute = false;
+        boolean containsKey = false;
+        for (String method : methods) {
+            String key = method + " " + resourcePath;
+            if (routeMap != null && routeMap.containsKey(key)) {
+                containsKey = true;
+                if (method.equalsIgnoreCase("ALL")) {
+                    canExecute = true;
+                } else if (method.equalsIgnoreCase(reqMethod)) {
+                    canExecute = true;
+                }
 
-            // out.println("Controller : " + handler.getControllerClass().getName() +
-            // "<br>");
-            // out.println("Méthode : " + handler.getMethod().getName() + "<br>");
-            return;
+                if (canExecute) {
+                    RouteHandler handler = routeMap.get(key);
+                    System.out.println("== Route trouvée ==");
+                    System.out.println("URL : " + resourcePath);
+                    System.out.println("Controller : " + handler.getControllerClass().getName());
+                    System.out.println("Méthode : " + handler.getMethod().getName());
+
+                    executeMethod(handler, req, resp);
+                    return;
+                }
+                // out.println("Controller : " + handler.getControllerClass().getName() +
+                // "<br>");
+                // out.println("Méthode : " + handler.getMethod().getName() + "<br>");
+            }
+
         }
 
-        String[] patternAndParamStrings = checkUrlParam(resourcePath, out, req, resp);
+        Object[] patternCheckResult = checkUrlParam(resourcePath, out, req, resp);
+        containsKey = (boolean) patternCheckResult[0];
+        String[] patternAndParamStrings = (String[]) patternCheckResult[1];
 
         if (patternAndParamStrings != null) {
             // out.println("== Route avec pattern trouvée == <br>");
             // out.println("URL : " + resourcePath + "<br>");
             // out.println("Pattern : " + patternAndParamStrings[0] + "<br>");
-            // out.println("Controller : " + routeMap.get(patternAndParamStrings[0]).getControllerClass().getName() + "<br>");
-            // out.println("Méthode : " + routeMap.get(patternAndParamStrings[0]).getMethod().getName() + "<br>");
-            // out.println("Paramètre extrait : " + patternAndParamStrings[1] + " = " + patternAndParamStrings[2] + "<br>");
+            // out.println("Controller : " +
+            // routeMap.get(patternAndParamStrings[0]).getControllerClass().getName() +
+            // "<br>");
+            // out.println("Méthode : " +
+            // routeMap.get(patternAndParamStrings[0]).getMethod().getName() + "<br>");
+            // out.println("Paramètre extrait : " + patternAndParamStrings[1] + " = " +
+            // patternAndParamStrings[2] + "<br>");
             // out.println("== Route avec pattern trouvée == <br>");
+            String method2 = patternAndParamStrings[0].split(" ")[0];
 
-            RouteHandler handler = routeMap.get(patternAndParamStrings[0]);
-            executeMethodForParameterizedRoute(handler, req, resp, patternAndParamStrings[2]);
+            if (method2.equalsIgnoreCase("ALL") || method2.equalsIgnoreCase(reqMethod)) {
+                canExecute = true;
+            }
+
+            if (canExecute) {
+                RouteHandler handler = routeMap.get(patternAndParamStrings[0]);
+                executeMethodForParameterizedRoute(handler, req, resp, patternAndParamStrings[2]);
+                return;
+            }
+        }
+
+        if (!canExecute && containsKey) {
+            out.println("Méthode HTTP non autorisée pour cette route.");
+            resp.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
             return;
         }
 
@@ -134,7 +171,8 @@ public class FrontServlet extends HttpServlet {
         throw new Exception("Tsy haiko ity  : " + resourcePath);
     }
 
-    private void executeMethodForParameterizedRoute(RouteHandler handler, HttpServletRequest req, HttpServletResponse resp, String paramValue) {
+    private void executeMethodForParameterizedRoute(RouteHandler handler, HttpServletRequest req,
+            HttpServletResponse resp, String paramValue) {
         try {
             Object controllerInstance = handler.getControllerClass().getDeclaredConstructor().newInstance();
 
@@ -149,9 +187,9 @@ public class FrontServlet extends HttpServlet {
 
                 if (parameters[0].getType() == int.class || parameters[0].getType() == Integer.class) {
                     args[0] = Integer.parseInt(paramValue);
-                } else  if (parameters[0].getType() == String.class) {
+                } else if (parameters[0].getType() == String.class) {
                     args[0] = paramValue;
-                } else  if (parameters[0].getType() == double.class || parameters[0].getType() == Double.class) {
+                } else if (parameters[0].getType() == double.class || parameters[0].getType() == Double.class) {
                     args[0] = Double.parseDouble(paramValue);
                 }
                 Object result = method.invoke(controllerInstance, args);
@@ -168,7 +206,7 @@ public class FrontServlet extends HttpServlet {
             }
         }
     }
-    
+
     private void executeMethod(RouteHandler handler, HttpServletRequest req, HttpServletResponse resp) {
         try {
             Object controllerInstance = handler.getControllerClass().getDeclaredConstructor().newInstance();
@@ -210,28 +248,40 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
-    private String[] checkUrlParam(String resourcePath, PrintWriter out, HttpServletRequest req,
+    private Object[] checkUrlParam(String resourcePath, PrintWriter out, HttpServletRequest req,
             HttpServletResponse resp) {
-        String[] result = new String[3];
+        Object[] resultObjects = new Object[2];
+        String[] result = null;
+        boolean containsKey = false;
+
         for (Map.Entry<String, RouteHandler> entry : routeMap.entrySet()) {
-            String pattern = entry.getKey();
+            String[] urlParts = entry.getKey().split(" ");
+            String pattern = urlParts[1];
             RouteHandler handler = entry.getValue();
 
             String[] matches = matchesPattern(pattern, resourcePath, req);
 
             if (matches != null) {
+                containsKey = true;
+
                 System.out.println("== Route avec pattern trouvée ==");
                 System.out.println("URL : " + resourcePath);
                 System.out.println("Pattern : " + pattern);
                 System.out.println("Controller : " + handler.getControllerClass().getName());
                 System.out.println("Méthode : " + handler.getMethod().getName());
-                result[0] = pattern;
-                result[1] = matches[0];
-                result[2] = matches[1];
-                return result;
+
+                if (urlParts[0].equalsIgnoreCase("ALL") || urlParts[0].equalsIgnoreCase(req.getMethod())) {
+                    result = new String[3];
+                    result[0] = entry.getKey();
+                    result[1] = matches[0];
+                    result[2] = matches[1];
+                }
             }
         }
-        return null;
+        resultObjects[0] = containsKey;
+        resultObjects[1] = result;
+
+        return resultObjects;
     }
 
     private String[] matchesPattern(String pattern, String path, HttpServletRequest req) {

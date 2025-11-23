@@ -12,6 +12,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import com.etu003184.annotation.Controller;
+import com.etu003184.annotation.GetMapping;
 import com.etu003184.annotation.UrlMapping;
 
 public class ClassScanner {
@@ -26,10 +27,12 @@ public class ClassScanner {
     // Scanner un répertoire (WEB-INF/classes)
     // --------------------------
     public void scanDirectory(File dir, String packageName) throws Exception {
-        if (!dir.exists()) return;
+        if (!dir.exists())
+            return;
 
         File[] files = dir.listFiles();
-        if (files == null) return;
+        if (files == null)
+            return;
 
         for (File file : files) {
             if (file.isDirectory()) {
@@ -62,7 +65,8 @@ public class ClassScanner {
                     try {
                         Class<?> cls = cl.loadClass(className);
                         scanClassForRoutes(cls);
-                    } catch (Throwable ignored) {}
+                    } catch (Throwable ignored) {
+                    }
                 }
             }
             cl.close();
@@ -79,6 +83,19 @@ public class ClassScanner {
             for (Method method : cls.getDeclaredMethods()) {
                 if (method.isAnnotationPresent(UrlMapping.class)) {
                     String url = method.getAnnotation(UrlMapping.class).value();
+                    url = "ALL " + url;
+                    routeMap.put(url, new RouteHandler(cls, method));
+                    System.out.println("Mapped: " + url + " -> " +
+                            cls.getName() + "." + method.getName());
+                } else if (method.isAnnotationPresent(GetMapping.class)) {
+                    String url = method.getAnnotation(GetMapping.class).value();
+                    url = "GET " + url;
+                    routeMap.put(url, new RouteHandler(cls, method));
+                    System.out.println("Mapped: " + url + " -> " +
+                            cls.getName() + "." + method.getName());
+                } else if (method.isAnnotationPresent(com.etu003184.annotation.PostMapping.class)) {
+                    String url = method.getAnnotation(com.etu003184.annotation.PostMapping.class).value();
+                    url = "POST " + url;
                     routeMap.put(url, new RouteHandler(cls, method));
                     System.out.println("Mapped: " + url + " -> " +
                             cls.getName() + "." + method.getName());
