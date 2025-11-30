@@ -6,6 +6,7 @@ import jakarta.servlet.ServletContextListener;
 import jakarta.servlet.annotation.WebListener;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 
 import com.etu003184.util.ClassScanner;
@@ -32,20 +33,24 @@ public class AppInitializer implements ServletContextListener {
         // Scanner tous les JAR dans WEB-INF/lib
         // File libDir = new File(context.getRealPath("/WEB-INF/lib"));
         // if (libDir.exists() && libDir.isDirectory()) {
-        //     for (File jar : libDir.listFiles((d, name) -> name.endsWith(".jar"))) {
-        //         scanner.scanJar(jar);
-        //     }
+        // for (File jar : libDir.listFiles((d, name) -> name.endsWith(".jar"))) {
+        // scanner.scanJar(jar);
+        // }
         // }
 
-        Map<String, RouteHandler> routes = scanner.getRouteMap();
+        Map<String, List<RouteHandler>> routes = scanner.getRouteMap();
         context.setAttribute("ROUTES", routes);
 
         System.out.println("=== Routes enregistrées ===");
         for (String url : routes.keySet()) {
-            RouteHandler handler = routes.get(url);
-            System.out.println("  " + url + " -> " +
-                    handler.getControllerClass().getName() + "." +
-                    handler.getMethod().getName());
+            List<RouteHandler> handlers = routes.get(url);
+            System.out.println("url: " + url);
+            for (RouteHandler handler : handlers) {
+                System.out.println("  " +
+                        handler.getControllerClass().getName() + "." +
+                        handler.getMethod().getName() + " [" + handler.getHttpMethod() + "]");
+            }
+            System.out.println("-----------------------");
         }
 
         System.out.println("=== Initialisation terminée ===");

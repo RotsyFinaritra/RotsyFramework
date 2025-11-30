@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.List;
 import java.util.Map;
 
 import com.etu003184.model.ModelView;
@@ -16,13 +17,13 @@ import com.etu003184.util.RouteHandler;
 @WebServlet(name = "FrontServlet", urlPatterns = "/*")
 public class FrontServlet extends HttpServlet {
 
-    private Map<String, RouteHandler> routeMap;
+    private Map<String, List<RouteHandler>> routeMap;
 
     @Override
     public void init() throws ServletException {
         // Récupérer les routes du contexte
         ServletContext context = getServletContext();
-        routeMap = (Map<String, RouteHandler>) context.getAttribute("ROUTES");
+        routeMap = (Map<String, List<RouteHandler>>) context.getAttribute("ROUTES");
 
         System.out.println("=== FrontServlet initialisé ===");
     }
@@ -92,13 +93,17 @@ public class FrontServlet extends HttpServlet {
         PrintWriter out = resp.getWriter();
         if (routeMap != null && routeMap.containsKey(resourcePath)) {
 
-            RouteHandler handler = routeMap.get(resourcePath);
-            System.out.println("== Route trouvée ==");
-            System.out.println("URL : " + resourcePath);
-            System.out.println("Controller : " + handler.getControllerClass().getName());
-            System.out.println("Méthode : " + handler.getMethod().getName());
+            List<RouteHandler> handlers = routeMap.get(resourcePath);
 
-            executeMethod(handler, req, resp);
+            RouteHandler matchedHandler = getMatchedHandler(handlers, req);
+            if (matchedHandler != null) {
+                System.out.println("== Route trouvée ==");
+                System.out.println("URL : " + resourcePath);
+                System.out.println("Controller : " + matchedHandler.getControllerClass().getName());
+                System.out.println("Méthode : " + matchedHandler.getMethod().getName());
+
+                executeMethod(matchedHandler, req, resp);
+            }
 
             // out.println("Controller : " + handler.getControllerClass().getName() +
             // "<br>");
@@ -112,12 +117,18 @@ public class FrontServlet extends HttpServlet {
             // out.println("== Route avec pattern trouvée == <br>");
             // out.println("URL : " + resourcePath + "<br>");
             // out.println("Pattern : " + patternAndParamStrings[0] + "<br>");
-            // out.println("Controller : " + routeMap.get(patternAndParamStrings[0]).getControllerClass().getName() + "<br>");
-            // out.println("Méthode : " + routeMap.get(patternAndParamStrings[0]).getMethod().getName() + "<br>");
-            // out.println("Paramètre extrait : " + patternAndParamStrings[1] + " = " + patternAndParamStrings[2] + "<br>");
+            // out.println("Controller : " +
+            // routeMap.get(patternAndParamStrings[0]).getControllerClass().getName() +
+            // "<br>");
+            // out.println("Méthode : " +
+            // routeMap.get(patternAndParamStrings[0]).getMethod().getName() + "<br>");
+            // out.println("Paramètre extrait : " + patternAndParamStrings[1] + " = " +
+            // patternAndParamStrings[2] + "<br>");
             // out.println("== Route avec pattern trouvée == <br>");
 
-            RouteHandler handler = routeMap.get(patternAndParamStrings[0]);
+            RouteHandler handler = getMatchedHandler(routeMap.get(patternAndParamStrings[0]), req);
+            System.out.println("Controller miasa : " + handler.getControllerClass().getName());
+            System.out.println("Méthode miasa : " + handler.getMethod().getName());
             executeMethodForParameterizedRoute(handler, req, resp, patternAndParamStrings[2]);
             return;
         }
@@ -134,7 +145,21 @@ public class FrontServlet extends HttpServlet {
         throw new Exception("Tsy haiko ity  : " + resourcePath);
     }
 
-    private void executeMethodForParameterizedRoute(RouteHandler handler, HttpServletRequest req, HttpServletResponse resp, String paramValue) {
+    private RouteHandler getMatchedHandler(List<RouteHandler> handlers, HttpServletRequest req) {
+        RouteHandler result = null;
+        for (RouteHandler handler : handlers) {
+            if (handler.getHttpMethod().equalsIgnoreCase(req.getMethod())) {
+                result = handler;
+                break;
+            } else if (result == null && handler.getHttpMethod().equalsIgnoreCase("ANY")) {
+                result = handler;
+            }
+        }
+        return result;
+    }
+
+    private void executeMethodForParameterizedRoute(RouteHandler handler, HttpServletRequest req,
+            HttpServletResponse resp, String paramValue) {
         try {
             Object controllerInstance = handler.getControllerClass().getDeclaredConstructor().newInstance();
 
@@ -149,9 +174,9 @@ public class FrontServlet extends HttpServlet {
 
                 if (parameters[0].getType() == int.class || parameters[0].getType() == Integer.class) {
                     args[0] = Integer.parseInt(paramValue);
-                } else  if (parameters[0].getType() == String.class) {
+                } else if (parameters[0].getType() == String.class) {
                     args[0] = paramValue;
-                } else  if (parameters[0].getType() == double.class || parameters[0].getType() == Double.class) {
+                } else if (parameters[0].getType() == double.class || parameters[0].getType() == Double.class) {
                     args[0] = Double.parseDouble(paramValue);
                 }
                 Object result = method.invoke(controllerInstance, args);
@@ -168,7 +193,7 @@ public class FrontServlet extends HttpServlet {
             }
         }
     }
-    
+
     private void executeMethod(RouteHandler handler, HttpServletRequest req, HttpServletResponse resp) {
         try {
             Object controllerInstance = handler.getControllerClass().getDeclaredConstructor().newInstance();
@@ -213,9 +238,9 @@ public class FrontServlet extends HttpServlet {
     private String[] checkUrlParam(String resourcePath, PrintWriter out, HttpServletRequest req,
             HttpServletResponse resp) {
         String[] result = new String[3];
-        for (Map.Entry<String, RouteHandler> entry : routeMap.entrySet()) {
+        for (Map.Entry<String, List<RouteHandler>> entry : routeMap.entrySet()) {
             String pattern = entry.getKey();
-            RouteHandler handler = entry.getValue();
+            List<RouteHandler> handlers = entry.getValue();
 
             String[] matches = matchesPattern(pattern, resourcePath, req);
 
@@ -223,8 +248,11 @@ public class FrontServlet extends HttpServlet {
                 System.out.println("== Route avec pattern trouvée ==");
                 System.out.println("URL : " + resourcePath);
                 System.out.println("Pattern : " + pattern);
-                System.out.println("Controller : " + handler.getControllerClass().getName());
-                System.out.println("Méthode : " + handler.getMethod().getName());
+
+                for (RouteHandler handler : handlers) {
+                    System.out.println("Controller : " + handler.getControllerClass().getName());
+                    System.out.println("Méthode : " + handler.getMethod().getName());
+                }
                 result[0] = pattern;
                 result[1] = matches[0];
                 result[2] = matches[1];
