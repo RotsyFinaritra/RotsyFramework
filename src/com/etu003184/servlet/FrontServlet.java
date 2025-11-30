@@ -179,7 +179,8 @@ public class FrontServlet extends HttpServlet {
                 } else if (parameters[0].getType() == double.class || parameters[0].getType() == Double.class) {
                     args[0] = Double.parseDouble(paramValue);
                 }
-                Object result = method.invoke(controllerInstance, args);
+
+                Object result = GenericUtil.handleMethodWithParameters(controllerInstance, method, args, 1, req, resp);
                 handleResultObject(result, req, resp);
             } else {
                 resp.getWriter().println("Tsa metyyy.");
@@ -204,7 +205,7 @@ public class FrontServlet extends HttpServlet {
                 Object result = method.invoke(controllerInstance);
                 handleResultObject(result, req, resp);
             } else if (method.getParameterCount() > 0) {
-                Object result = GenericUtil.handleMethodWithParameters(controllerInstance, method, req, resp);
+                Object result = GenericUtil.handleMethodWithParameters(controllerInstance, method, null, 0, req, resp);
                 handleResultObject(result, req, resp);
             } else {
                 resp.getWriter().println("Tsa metyyy.");

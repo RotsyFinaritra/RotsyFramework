@@ -10,12 +10,15 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public class GenericUtil {
 
-    public static Object handleMethodWithParameters(Object instance, Method method, HttpServletRequest req,
+    public static Object handleMethodWithParameters(Object instance, Method method, Object[] args, int startIndex, HttpServletRequest req,
             HttpServletResponse resp) {
         Parameter[] parameters = method.getParameters();
         System.out.println("Parameters length: " + parameters.length);
-        Object[] args = new Object[parameters.length];
-        for (int i = 0; i < parameters.length; i++) {
+        if (args == null) {
+            args = new Object[parameters.length];
+        }
+        // Object[] args = new Object[parameters.length];
+        for (int i = startIndex; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
             Class<?> paramType = parameter.getType();
 
