@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 
@@ -178,6 +179,8 @@ public class FrontServlet extends HttpServlet {
                     args[0] = paramValue;
                 } else if (parameters[0].getType() == double.class || parameters[0].getType() == Double.class) {
                     args[0] = Double.parseDouble(paramValue);
+                } else if (GenericUtil.isMapStringObject(parameters[0])) {
+                    args[0] = GenericUtil.getMappedParameters(req);
                 }
 
                 Object result = GenericUtil.handleMethodWithParameters(controllerInstance, method, args, 1, req, resp);
