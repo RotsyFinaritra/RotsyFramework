@@ -5,6 +5,7 @@ import java.lang.reflect.Method;
 public class RouteHandler {
     private final Class<?> controllerClass;
     private final Method method;
+    private String httpMethod;
 
     public RouteHandler(Class<?> controllerClass, Method method) {
         this.controllerClass = controllerClass;
@@ -17,5 +18,13 @@ public class RouteHandler {
 
     public Method getMethod() {
         return method;
+    }
+
+    public String getHttpMethod() {
+        return httpMethod;
+    }
+
+    public void setHttpMethod(String httpMethod) {
+        this.httpMethod = httpMethod;
     }
 }

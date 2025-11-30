@@ -7,19 +7,42 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.logging.Handler;
 
 import com.etu003184.annotation.Controller;
+import com.etu003184.annotation.GetMapping;
+import com.etu003184.annotation.PostMapping;
 import com.etu003184.annotation.UrlMapping;
 
 public class ClassScanner {
 
-    private final Map<String, RouteHandler> routeMap = new HashMap<>();
+    private final Map<String, List<RouteHandler>> routeMap = new HashMap<>();
 
-    public Map<String, RouteHandler> getRouteMap() {
+    public Map<String, List<RouteHandler>> getRouteMap() {
         return routeMap;
+    }
+
+    public void addRoute(String url, RouteHandler handler) {
+        List<RouteHandler> handlers = routeMap.computeIfAbsent(url, k -> new java.util.ArrayList<>());
+
+        boolean exists = false;
+        for (RouteHandler handler2 : handlers) {
+            // if (handler2.getHttpMethod().equals(handler.getHttpMethod())) {
+            //     throw new RuntimeException("Route déjà définie pour " + url + " [" + handler.getHttpMethod() + "] dans le controller " +
+            //             handler.getControllerClass().getName() + "." + handler.getMethod().getName());
+            // }
+            if (handler2.getHttpMethod().equals(handler.getHttpMethod())) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            handlers.add(handler);
+        }
     }
 
     // --------------------------
@@ -79,9 +102,25 @@ public class ClassScanner {
             for (Method method : cls.getDeclaredMethods()) {
                 if (method.isAnnotationPresent(UrlMapping.class)) {
                     String url = method.getAnnotation(UrlMapping.class).value();
-                    routeMap.put(url, new RouteHandler(cls, method));
+                    RouteHandler handler = new RouteHandler(cls, method);
+                    handler.setHttpMethod("ANY");
+                    this.addRoute(url, handler);
                     System.out.println("Mapped: " + url + " -> " +
                             cls.getName() + "." + method.getName());
+                } else if (method.isAnnotationPresent(GetMapping.class)) {
+                    String url = method.getAnnotation(GetMapping.class).value();
+                    RouteHandler handler = new RouteHandler(cls, method);
+                    handler.setHttpMethod("GET");
+                    this.addRoute(url, handler);
+                    System.out.println("Mapped: " + url + " -> " +
+                            cls.getName() + "." + method.getName() + " [GET]");
+                } else if (method.isAnnotationPresent(PostMapping.class)) {
+                    String url = method.getAnnotation(PostMapping.class).value();
+                    RouteHandler handler = new RouteHandler(cls, method);
+                    handler.setHttpMethod("POST");
+                    this.addRoute(url, handler);
+                    System.out.println("Mapped: " + url + " -> " +
+                            cls.getName() + "." + method.getName() + " [POST]");
                 }
             }
         }
