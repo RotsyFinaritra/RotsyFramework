@@ -23,7 +23,7 @@ public class GenericUtil {
         if (parameter.getParameterizedType() instanceof ParameterizedType pType) {
             Type[] actualTypes = pType.getActualTypeArguments();
             if (actualTypes.length == 2) {
-                return actualTypes[0] == String.class;
+                return actualTypes[0] == String.class && actualTypes[1] == Object.class;
             }
         }
         return false;
