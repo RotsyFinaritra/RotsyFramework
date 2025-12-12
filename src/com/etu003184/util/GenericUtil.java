@@ -1,5 +1,6 @@
 package com.etu003184.util;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
@@ -13,6 +14,161 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public class GenericUtil {
+
+    public static Object getArrayFromParameters(HttpServletRequest req, Class<?> componentType, String arrayPrefix) {
+        try {
+            java.util.List<Object> objectList = new java.util.ArrayList<>();
+
+            // Récupérer tous les noms de paramètres pour détecter les indices
+            java.util.Set<Integer> indices = new java.util.TreeSet<>(); // Utiliser TreeSet pour maintenir l'ordre
+            java.util.Enumeration<String> paramNames = req.getParameterNames();
+
+            while (paramNames.hasMoreElements()) {
+                String paramName = paramNames.nextElement();
+                if (paramName.startsWith(arrayPrefix + "[") && paramName.contains("].")) {
+                    // Extraire l'indice du paramètre arrayPrefix[index].fieldName
+                    String indexPart = paramName.substring(arrayPrefix.length() + 1);
+                    int closeBracket = indexPart.indexOf(']');
+                    if (closeBracket > 0) {
+                        try {
+                            int index = Integer.parseInt(indexPart.substring(0, closeBracket));
+                            indices.add(index);
+                        } catch (NumberFormatException e) {
+                            // Ignorer si ce n'est pas un nombre valide
+                        }
+                    }
+                }
+            }
+
+            // Créer les objets pour chaque indice trouvé
+            for (Integer index : indices) {
+                String elementPrefix = arrayPrefix + "[" + index + "]";
+                Object element = getObjectFromParameters(req, componentType, elementPrefix);
+                objectList.add(element);
+            }
+
+            // Convertir ArrayList en tableau du bon type
+            Object array = java.lang.reflect.Array.newInstance(componentType, objectList.size());
+            for (int i = 0; i < objectList.size(); i++) {
+                java.lang.reflect.Array.set(array, i, objectList.get(i));
+            }
+
+            return array;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Erreur lors de la création du tableau d'objets complexes.");
+        }
+    }
+
+    public static Object getObjectFromParameters(HttpServletRequest req, Class<?> clazz, String mere) {
+        try {
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+            Field[] fields = clazz.getDeclaredFields();
+            String className = clazz.getSimpleName().toLowerCase();
+
+            mere = mere.isEmpty() ? className : mere;
+
+            for (Field field : fields) {
+                String fieldName = field.getName();
+                String paramName = mere + "." + fieldName;
+                String paramValue = req.getParameter(paramName);
+                field.setAccessible(true);
+                Class<?> fieldType = field.getType();
+
+                if (paramValue != null) {
+
+                    System.out.println("Setting field: " + fieldName + " of type " + fieldType.getName()
+                            + " with value from param: " + paramName);
+
+                    if (fieldType == String.class) {
+                        field.set(instance, paramValue);
+                    } else if (fieldType == int.class || fieldType == Integer.class) {
+                        field.set(instance, Integer.parseInt(paramValue));
+                    } else if (fieldType == double.class || fieldType == Double.class) {
+                        field.set(instance, Double.parseDouble(paramValue));
+                    } else if (isComplexObjectArray(fieldType)) {
+                        System.out.println("Tableau d'objets complexes détecté pour le champ: " + fieldName);
+                        Class<?> componentType = fieldType.getComponentType();
+                        Object arrayResult = getArrayFromParameters(req, componentType, paramName);
+                        field.set(instance, arrayResult);
+                    } else if (isComplexObject(fieldType)) {
+                        System.out.println("complex field detected: " + fieldName + " of type " + fieldType.getName());
+                        Object objetResult = getObjectFromParameters(req, fieldType, paramName);
+                        field.set(instance, objetResult);
+                    } else {
+                        System.out
+                                .println("Unsupported field type: " + fieldType.getName() + " for field " + fieldName);
+                        field.set(instance, null);
+                    }
+                } else if (isComplexObjectArray(fieldType)) {
+                    // Gérer les tableaux d'objets complexes comme dept[0], dept[1], etc.
+                    System.out.println("Tableau d'objets complexes détecté pour le champ: " + fieldName);
+                    Class<?> componentType = fieldType.getComponentType();
+                    Object arrayResult = getArrayFromParameters(req, componentType, paramName);
+                    field.set(instance, arrayResult);
+                } else if (isComplexObject(fieldType)) {
+                    // Vérifier s'il y a des paramètres pour cet objet complexe
+                    boolean hasComplexParams = hasParametersWithPrefix(req, paramName);
+                    if (hasComplexParams) {
+                        Object objetResult = getObjectFromParameters(req, fieldType, paramName);
+                        field.set(instance, objetResult);
+                    }
+                }
+            }
+
+            return instance;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Erreur lors de la création de l'objet à partir des paramètres.");
+        }
+    }
+
+    public static boolean hasParametersWithPrefix(HttpServletRequest req, String prefix) {
+        java.util.Enumeration<String> paramNames = req.getParameterNames();
+        while (paramNames.hasMoreElements()) {
+            String paramName = paramNames.nextElement();
+            // Vérifier pour les objets simples (prefix.field) et les tableaux (prefix[0].field)
+            if (paramName.startsWith(prefix + ".") || paramName.startsWith(prefix + "[")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isComplexObjectArray(Class<?> type) {
+        if (!type.isArray())
+            return false;
+
+        Class<?> component = type.getComponentType();
+        return !component.isPrimitive() && isComplexObject(component);
+    }
+
+    public static boolean isComplexObject(Class<?> type) {
+
+        if (type.isPrimitive())
+            return false;
+
+        if (type == Boolean.class || type == Byte.class || type == Character.class ||
+                type == Short.class || type == Integer.class || type == Long.class ||
+                type == Float.class || type == Double.class ||
+                type == String.class ||
+                Number.class.isAssignableFrom(type) || // BigDecimal, BigInteger, etc.
+                type.isEnum() ||
+                type == java.util.Date.class ||
+                type == java.sql.Date.class ||
+                type == java.time.LocalDate.class ||
+                type == java.time.LocalDateTime.class ||
+                type == java.time.LocalTime.class ||
+                type == HttpServletRequest.class ||
+                type == HttpServletResponse.class ||
+                type == Map.class ||
+                Map.class.isAssignableFrom(type)) {
+
+            return false;
+        }
+
+        return true;
+    }
 
     public static boolean isMapStringObject(Parameter parameter) {
         if (!Map.class.isAssignableFrom(parameter.getType())) {
@@ -81,6 +237,15 @@ public class GenericUtil {
                     args[i] = paramValue != null ? Double.parseDouble(paramValue) : 0.0;
                 } else if (GenericUtil.isMapStringObject(parameter)) {
                     args[i] = GenericUtil.getMappedParameters(req);
+                } else if (GenericUtil.isComplexObjectArray(paramType)) {
+                    System.out.println("Tableau d'objets complexes détecté pour le paramètre: " + paramName);
+                    Class<?> componentType = paramType.getComponentType();
+                    args[i] = getArrayFromParameters(req, componentType, paramName);
+                } else if (GenericUtil.isComplexObject(paramType)) {
+                    System.out.println("Objet complexe détecté pour le paramètre: " + paramName + " de type "
+                            + paramType.getName());
+
+                    args[i] = GenericUtil.getObjectFromParameters(req, paramType, "");
                 } else {
                     args[i] = null;
                 }
