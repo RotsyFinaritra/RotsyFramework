@@ -2,7 +2,7 @@
 set -e
 
 # Emplacement du servlet-api.jar (Tomcat déjà installé)
-TOMCAT_LIB=/opt/apache-tomcat-10.1.28/lib/servlet-api.jar
+TOMCAT_LIB=./lib/servlet-api.jar
 
 # Nettoyage
 rm -rf out
@@ -13,8 +13,8 @@ echo "🔨 Compilation de tous les composants dans src..."
 find src -name "*.java" -print | xargs javac -d out -cp $TOMCAT_LIB
 
 # Création du jar
-jar cf my-framework.jar -C out .
-echo "✅ JAR généré : my-framework.jar"
+jar cf rotsy-framework.jar -C out .
+echo "✅ JAR généré : rotsy-framework.jar"
 
 # copie / remplacement du jar dans le dossier lib /home/finaritra/Documents/cours/s5/Mr Naina/framework/myFramework/test-RotsyFramework/lib
-cp -f "my-framework.jar" "/home/finaritra/Documents/cours/s5/Mr Naina/framework/myFramework/test-RotsyFramework/lib/"
+cp -f "rotsy-framework.jar" "/home/finaritra/Documents/cours/s5/Mr Naina/framework/myFramework/test-RotsyFramework/webapp/WEB-INF/lib/"
