@@ -9,6 +9,7 @@ import java.util.Enumeration;
 import java.util.Map;
 
 import com.etu003184.annotation.RequestParam;
+import com.etu003184.model.UploadedFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -207,7 +208,9 @@ public class GenericUtil {
         if (args == null) {
             args = new Object[parameters.length];
         }
-        // Object[] args = new Object[parameters.length];
+        
+        boolean isMultipart = FileUploadUtil.isMultipartRequest(req);
+        
         for (int i = startIndex; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
             Class<?> paramType = parameter.getType();
@@ -226,14 +229,43 @@ public class GenericUtil {
                     args[i] = req;
                 } else if (paramType == HttpServletResponse.class) {
                     args[i] = resp;
+                } else if (paramType == UploadedFile.class) {
+                    // Gestion d'un seul fichier uploadé
+                    if (isMultipart) {
+                        args[i] = FileUploadUtil.getUploadedFile(req, paramName);
+                    } else {
+                        args[i] = null;
+                    }
+                } else if (paramType == UploadedFile[].class) {
+                    // Gestion de plusieurs fichiers uploadés
+                    if (isMultipart) {
+                        args[i] = FileUploadUtil.getUploadedFiles(req, paramName);
+                    } else {
+                        args[i] = new UploadedFile[0];
+                    }
                 } else if (paramType == String.class) {
-                    String paramValue = req.getParameter(paramName);
+                    String paramValue;
+                    if (isMultipart) {
+                        paramValue = FileUploadUtil.getFormParameter(req, paramName);
+                    } else {
+                        paramValue = req.getParameter(paramName);
+                    }
                     args[i] = paramValue;
                 } else if (paramType == int.class || paramType == Integer.class) {
-                    String paramValue = req.getParameter(paramName);
+                    String paramValue;
+                    if (isMultipart) {
+                        paramValue = FileUploadUtil.getFormParameter(req, paramName);
+                    } else {
+                        paramValue = req.getParameter(paramName);
+                    }
                     args[i] = paramValue != null ? Integer.parseInt(paramValue) : 0;
                 } else if (paramType == double.class || paramType == Double.class) {
-                    String paramValue = req.getParameter(paramName);
+                    String paramValue;
+                    if (isMultipart) {
+                        paramValue = FileUploadUtil.getFormParameter(req, paramName);
+                    } else {
+                        paramValue = req.getParameter(paramName);
+                    }
                     args[i] = paramValue != null ? Double.parseDouble(paramValue) : 0.0;
                 } else if (GenericUtil.isMapStringObject(parameter)) {
                     args[i] = GenericUtil.getMappedParameters(req);
@@ -244,7 +276,6 @@ public class GenericUtil {
                 } else if (GenericUtil.isComplexObject(paramType)) {
                     System.out.println("Objet complexe détecté pour le paramètre: " + paramName + " de type "
                             + paramType.getName());
-
                     args[i] = GenericUtil.getObjectFromParameters(req, paramType, "");
                 } else {
                     args[i] = null;
