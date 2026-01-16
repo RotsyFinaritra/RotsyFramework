@@ -11,8 +11,10 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 
+import com.etu003184.annotation.Json;
 import com.etu003184.model.ModelView;
 import com.etu003184.util.GenericUtil;
+import com.etu003184.util.JsonUtil;
 import com.etu003184.util.RouteHandler;
 
 @WebServlet(name = "FrontServlet", urlPatterns = "/*")
@@ -168,7 +170,7 @@ public class FrontServlet extends HttpServlet {
 
             if (method.getParameterCount() == 0) {
                 Object result = method.invoke(controllerInstance);
-                handleResultObject(result, req, resp);
+                handleResultObject(result, method, req, resp);
             } else if (method.getParameterCount() > 0) {
                 Parameter[] parameters = method.getParameters();
                 Object[] args = new Object[parameters.length];
@@ -184,7 +186,7 @@ public class FrontServlet extends HttpServlet {
                 }
 
                 Object result = GenericUtil.handleMethodWithParameters(controllerInstance, method, args, 1, req, resp);
-                handleResultObject(result, req, resp);
+                handleResultObject(result, method, req, resp);
             } else {
                 resp.getWriter().println("Tsa metyyy.");
             }
@@ -206,10 +208,10 @@ public class FrontServlet extends HttpServlet {
 
             if (method.getParameterCount() == 0) {
                 Object result = method.invoke(controllerInstance);
-                handleResultObject(result, req, resp);
+                handleResultObject(result, method, req, resp);
             } else if (method.getParameterCount() > 0) {
                 Object result = GenericUtil.handleMethodWithParameters(controllerInstance, method, null, 0, req, resp);
-                handleResultObject(result, req, resp);
+                handleResultObject(result, method, req, resp);
             } else {
                 resp.getWriter().println("Tsa metyyy.");
             }
@@ -217,13 +219,90 @@ public class FrontServlet extends HttpServlet {
         } catch (Exception e) {
             e.printStackTrace();
             try {
-                resp.getWriter().println("Erreur lors de l'exécution du contrôleur : " + e.getMessage());
+                Method method = handler.getMethod();
+                boolean isJsonAnnotated = method.isAnnotationPresent(Json.class);
+                
+                if (isJsonAnnotated) {
+                    // Retourner l'erreur en JSON
+                    resp.setContentType("application/json");
+                    resp.setCharacterEncoding("UTF-8");
+                    resp.setStatus(500);
+                    
+                    String errorMessage = e.getMessage() != null ? e.getMessage() : "Internal server error";
+                    String jsonResponse = JsonUtil.createJsonResponse("error", 500, errorMessage);
+                    resp.getWriter().println(jsonResponse);
+                } else {
+                    // Comportement normal pour les erreurs
+                    resp.getWriter().println("Erreur lors de l'exécution du contrôleur : " + e.getMessage());
+                }
             } catch (IOException ignored) {
             }
         }
     }
 
-    private void handleResultObject(Object result, HttpServletRequest req, HttpServletResponse resp) throws Exception {
+    private void handleResultObject(Object result, Method method, HttpServletRequest req, HttpServletResponse resp) throws Exception {
+        // Vérifier si la méthode a l'annotation @Json
+        boolean isJsonAnnotated = method.isAnnotationPresent(Json.class);
+        
+        if (isJsonAnnotated) {
+            handleJsonResponse(result, resp);
+        } else {
+            handleNormalResponse(result, req, resp);
+        }
+    }
+
+    private void handleJsonResponse(Object result, HttpServletResponse resp) throws Exception {
+        // Retourner la réponse en JSON
+        resp.setContentType("application/json");
+        resp.setCharacterEncoding("UTF-8");
+        
+        String status = "success";
+        int code = 200;
+        Object data = result;
+        
+        // Gérer les différents types de résultats
+        if (result == null) {
+            // Cas où rien n'est trouvé
+            status = "error";
+            code = 404;
+            data = "Resource not found";
+        } else if (result instanceof ModelView) {
+            ModelView modelView = (ModelView) result;
+            data = modelView.getData();
+            
+            // Vérifier si le ModelView contient des erreurs
+            if (modelView.getData().containsKey("error")) {
+                status = "error";
+                Object errorInfo = modelView.getData().get("error");
+                if (errorInfo instanceof String) {
+                    String errorMsg = (String) errorInfo;
+                    if (errorMsg.toLowerCase().contains("not found")) {
+                        code = 404;
+                    } else if (errorMsg.toLowerCase().contains("invalid") || 
+                              errorMsg.toLowerCase().contains("bad")) {
+                        code = 400;
+                    } else {
+                        code = 500;
+                    }
+                }
+            }
+        } else if (result instanceof java.util.Collection) {
+            // Vérifier si la collection est vide
+            java.util.Collection<?> collection = (java.util.Collection<?>) result;
+            if (collection.isEmpty()) {
+                status = "error";
+                code = 404;
+                data = "No data found";
+            }
+        }
+        
+        String jsonResponse = JsonUtil.createJsonResponse(status, code, data);
+        resp.setStatus(code); // Définir le code de statut HTTP
+        resp.getWriter().println(jsonResponse);
+    }
+
+    private void handleNormalResponse(Object result, HttpServletRequest req, HttpServletResponse resp) throws Exception {
+        // Comportement normal (non-JSON)
         if (result != null && result instanceof String) {
             resp.getWriter().println("Résultat : " + result);
         } else if (result != null && result instanceof ModelView) {
