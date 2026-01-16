@@ -62,3 +62,4 @@ node_modules/
 
 note.txt
 build.sh
+*.sh
