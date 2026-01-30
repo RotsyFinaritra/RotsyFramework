@@ -9,10 +9,12 @@ import java.util.Enumeration;
 import java.util.Map;
 
 import com.etu003184.annotation.RequestParam;
+import com.etu003184.annotation.Session;
 import com.etu003184.model.UploadedFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 public class GenericUtil {
 
@@ -224,11 +226,16 @@ public class GenericUtil {
                 paramName = requestParamAnnotation.value();
             }
 
+            Session sessionAnnotation = parameter.getAnnotation(Session.class);
+
             try {
                 if (paramType == HttpServletRequest.class) {
                     args[i] = req;
                 } else if (paramType == HttpServletResponse.class) {
                     args[i] = resp;
+                } else if (paramType == jakarta.servlet.http.HttpSession.class) {
+                    // Allow direct access to the session if requested
+                    args[i] = req.getSession();
                 } else if (paramType == UploadedFile.class) {
                     // Gestion d'un seul fichier uploadé
                     if (isMultipart) {
@@ -268,7 +275,16 @@ public class GenericUtil {
                     }
                     args[i] = paramValue != null ? Double.parseDouble(paramValue) : 0.0;
                 } else if (GenericUtil.isMapStringObject(parameter)) {
-                    args[i] = GenericUtil.getMappedParameters(req);
+                    // If annotated with @Session, bind to HttpSession attributes (live view)
+                    if (sessionAnnotation != null) {
+                        HttpSession session = req.getSession();
+                        System.out.println("tafiditra ato amin'ny condition ====================");
+                        // session.setAttribute("teste ato anatiny", "test value");
+                        
+                        args[i] = new SessionMap(req.getSession());
+                    } else {
+                        args[i] = GenericUtil.getMappedParameters(req);
+                    }
                 } else if (GenericUtil.isComplexObjectArray(paramType)) {
                     System.out.println("Tableau d'objets complexes détecté pour le paramètre: " + paramName);
                     Class<?> componentType = paramType.getComponentType();
