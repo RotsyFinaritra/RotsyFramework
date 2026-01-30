@@ -277,10 +277,6 @@ public class GenericUtil {
                 } else if (GenericUtil.isMapStringObject(parameter)) {
                     // If annotated with @Session, bind to HttpSession attributes (live view)
                     if (sessionAnnotation != null) {
-                        HttpSession session = req.getSession();
-                        System.out.println("tafiditra ato amin'ny condition ====================");
-                        // session.setAttribute("teste ato anatiny", "test value");
-                        
                         args[i] = new SessionMap(req.getSession());
                     } else {
                         args[i] = GenericUtil.getMappedParameters(req);
