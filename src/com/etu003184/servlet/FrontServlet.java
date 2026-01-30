@@ -7,11 +7,13 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 
+import com.etu003184.annotation.Authentified;
 import com.etu003184.annotation.Json;
+import com.etu003184.annotation.Authorized;
+import com.etu003184.annotation.Role;
 import com.etu003184.model.ModelView;
 import com.etu003184.util.GenericUtil;
 import com.etu003184.util.JsonUtil;
@@ -168,6 +170,10 @@ public class FrontServlet extends HttpServlet {
 
             Method method = handler.getMethod();
 
+            if (!checkSecurity(handler.getControllerClass(), method, req, resp)) {
+                return;
+            }
+
             if (method.getParameterCount() == 0) {
                 Object result = method.invoke(controllerInstance);
                 handleResultObject(result, method, req, resp);
@@ -205,6 +211,10 @@ public class FrontServlet extends HttpServlet {
             Object controllerInstance = handler.getControllerClass().getDeclaredConstructor().newInstance();
 
             Method method = handler.getMethod();
+
+            if (!checkSecurity(handler.getControllerClass(), method, req, resp)) {
+                return;
+            }
 
             if (method.getParameterCount() == 0) {
                 Object result = method.invoke(controllerInstance);
@@ -248,6 +258,146 @@ public class FrontServlet extends HttpServlet {
             handleJsonResponse(result, resp);
         } else {
             handleNormalResponse(result, req, resp);
+        }
+    }
+
+    private boolean checkSecurity(Class<?> controllerClass, Method method, HttpServletRequest req, HttpServletResponse resp)
+            throws IOException {
+        boolean isJsonAnnotated = method.isAnnotationPresent(Json.class);
+
+        // Configurable conventions (via web.xml <context-param>)
+        // Defaults keep the framework usable without configuration.
+        ServletContext servletContext = req.getServletContext();
+        String configuredAuthKey = servletContext.getInitParameter("auth.sessionKey");
+        if (configuredAuthKey == null || configuredAuthKey.isBlank()) {
+            configuredAuthKey = "user";
+        }
+        String configuredRolesKey = servletContext.getInitParameter("roles.sessionKey");
+        if (configuredRolesKey == null || configuredRolesKey.isBlank()) {
+            configuredRolesKey = "roles";
+        }
+        String rolesSeparator = servletContext.getInitParameter("roles.separator");
+        if (rolesSeparator == null || rolesSeparator.isBlank()) {
+            rolesSeparator = ",";
+        }
+
+        Authentified authentified = method.getAnnotation(Authentified.class);
+        if (authentified == null) {
+            authentified = controllerClass.getAnnotation(Authentified.class);
+        }
+
+        Authorized authorized = method.getAnnotation(Authorized.class);
+        if (authorized == null) {
+            authorized = controllerClass.getAnnotation(Authorized.class);
+        }
+
+        Role role = method.getAnnotation(Role.class);
+        if (role == null) {
+            role = controllerClass.getAnnotation(Role.class);
+        }
+
+        boolean needsAuth = authentified != null || authorized != null || role != null;
+        if (!needsAuth) {
+            return true;
+        }
+
+        HttpSession session = req.getSession(false);
+        if (session == null) {
+            writeSecurityError(resp, isJsonAnnotated, 401, "Unauthorized: session not found");
+            return false;
+        }
+
+        // Determine which session key indicates authentication
+        String authKey = configuredAuthKey;
+        if (authentified != null && authentified.value() != null && !authentified.value().isBlank()) {
+            authKey = authentified.value().trim();
+        } else if (authorized != null && authorized.value() != null && !authorized.value().isBlank()) {
+            // Backward compatible: @Authorized("userKey")
+            authKey = authorized.value().trim();
+        }
+
+        Object principal = session.getAttribute(authKey);
+        if (principal == null) {
+            writeSecurityError(resp, isJsonAnnotated, 401, "Unauthorized: not authenticated");
+            return false;
+        }
+
+        if (role != null && role.value() != null && !role.value().isBlank()) {
+            String requiredRoles = role.value().trim();
+            if (!hasAnyRole(session, configuredRolesKey, rolesSeparator, requiredRoles)) {
+                writeSecurityError(resp, isJsonAnnotated, 403, "Forbidden: you do not have the required role to access this resource");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean hasAnyRole(HttpSession session, String rolesKey, String rolesSeparator, String requiredRolesCsv) {
+        // Configurable convention (rolesKey) + backward compatible fallbacks ("role"/"roles")
+        Object configuredRolesAttr = session.getAttribute(rolesKey);
+        Object roleAttr = session.getAttribute("role");
+        Object rolesAttr = session.getAttribute("roles");
+
+        String[] required = requiredRolesCsv.split(",");
+        for (String raw : required) {
+            String requiredRole = raw.trim();
+            if (requiredRole.isEmpty()) continue;
+
+            if (matchesRole(configuredRolesAttr, rolesSeparator, requiredRole)
+                    || matchesRole(roleAttr, rolesSeparator, requiredRole)
+                    || matchesRole(rolesAttr, rolesSeparator, requiredRole)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesRole(Object roleObj, String rolesSeparator, String requiredRole) {
+        if (roleObj == null) return false;
+
+        if (roleObj instanceof String s) {
+            // Accept either a single role ("chef") or a list ("chef,admin") depending on separator
+            String trimmed = s.trim();
+            if (trimmed.equalsIgnoreCase(requiredRole)) return true;
+
+            if (rolesSeparator != null && !rolesSeparator.isEmpty() && trimmed.contains(rolesSeparator)) {
+                String[] parts = trimmed.split(java.util.regex.Pattern.quote(rolesSeparator));
+                for (String p : parts) {
+                    if (p != null && p.trim().equalsIgnoreCase(requiredRole)) return true;
+                }
+            }
+            return false;
+        }
+
+        if (roleObj instanceof String[] arr) {
+            for (String s : arr) {
+                if (s != null && s.equalsIgnoreCase(requiredRole)) return true;
+            }
+            return false;
+        }
+
+        if (roleObj instanceof java.util.Collection<?> col) {
+            for (Object o : col) {
+                if (o != null && o.toString().equalsIgnoreCase(requiredRole)) return true;
+            }
+            return false;
+        }
+
+        return roleObj.toString().equalsIgnoreCase(requiredRole);
+    }
+
+    private void writeSecurityError(HttpServletResponse resp, boolean json, int status, String message)
+            throws IOException {
+        resp.setStatus(status);
+        if (json) {
+            resp.setContentType("application/json");
+            resp.setCharacterEncoding("UTF-8");
+            resp.getWriter().println(JsonUtil.createJsonResponse("error", status, message));
+        } else {
+            resp.setContentType("text/plain");
+            resp.setCharacterEncoding("UTF-8");
+            resp.getWriter().println(message);
         }
     }
 
